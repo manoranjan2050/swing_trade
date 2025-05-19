@@ -1,0 +1,33 @@
+CREATE DATABASE swing_trade_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE swing_trade_db;
+
+-- Trades table
+CREATE TABLE trades (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  stock_symbol VARCHAR(10) NOT NULL,
+  entry_price DECIMAL(10,2) NOT NULL,
+  stoploss DECIMAL(10,2) NOT NULL,
+  target1 DECIMAL(10,2) NOT NULL,
+  target2 DECIMAL(10,2) DEFAULT NULL,
+  quantity INT NOT NULL,
+  closed_quantity INT DEFAULT 0,
+  booked_price DECIMAL(10,2) DEFAULT NULL,
+  trade_date DATE DEFAULT NULL,
+  is_long_term TINYINT(1) DEFAULT 0,
+  status ENUM('active', 'closed') DEFAULT 'active',
+  close_date DATE DEFAULT NULL,
+  added_by VARCHAR(100) DEFAULT NULL
+);
+
+-- Settings table
+CREATE TABLE settings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  total_capital DECIMAL(15,2) DEFAULT 100000.00,
+  theme_color VARCHAR(20) DEFAULT '#4bc0c0',
+  my_name VARCHAR(100) DEFAULT 'Your Name',
+  copyright_text VARCHAR(255) DEFAULT '© 2025 Your Company'
+);
+
+-- Insert default settings
+INSERT INTO settings (total_capital, theme_color, my_name, copyright_text)
+VALUES (100000.00, '#4bc0c0', 'Your Name', '© 2025 Your Company');
