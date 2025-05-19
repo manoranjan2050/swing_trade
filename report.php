@@ -14,7 +14,21 @@ foreach ($active_trades as $trade) {
     $holdings[] = (int)$trade['holding'];
 }
 
-// Colors for bars - Chart.js will pick by default but you can specify array for consistency
+// Define 5 colors to cycle through
+$baseColors = [
+    '#4dc9f6', // blue
+    '#f67019', // orange
+    '#f53794', // pink
+    '#537bc4', // dark blue
+    '#acc236'  // green
+];
+
+// Assign colors cycling through baseColors for each symbol
+$backgroundColors = [];
+$countSymbols = count($symbols);
+for ($i = 0; $i < $countSymbols; $i++) {
+    $backgroundColors[] = $baseColors[$i % count($baseColors)];
+}
 ?>
 
 <!DOCTYPE html>
@@ -115,8 +129,8 @@ const holdingChart = new Chart(ctx, {
         datasets: [{
             label: 'Current Holding Shares',
             data: <?= json_encode($holdings) ?>,
-            backgroundColor: 'rgba(75, 192, 192, 0.7)',
-            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: <?= json_encode($backgroundColors) ?>,
+            borderColor: <?= json_encode($backgroundColors) ?>,
             borderWidth: 1,
             borderRadius: 5,
             hoverBackgroundColor: 'rgba(54, 162, 235, 0.8)',

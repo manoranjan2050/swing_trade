@@ -28,7 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Prepare failed: " . $conn->error);
     }
 
-    $stmt->bind_param("sddddii ssii", $symbol, $entry, $sl, $t1, $t2, $quantity, $closed_quantity, $booked_price, $added_by, $lt, $id);
+    // Correct bind_param types string with 11 params: s d d d d i i d s i i
+    $stmt->bind_param("sddddiisdii", $symbol, $entry, $sl, $t1, $t2, $quantity, $closed_quantity, $booked_price, $added_by, $lt, $id);
 
     if ($stmt->execute()) {
         header("Location: index.php");
