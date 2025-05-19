@@ -25,13 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lt = ($_POST['is_long_term'] == '1') ? 1 : 0;
 
     $stmt = $conn->prepare("UPDATE trades SET stock_symbol=?, entry_price=?, stoploss=?, target1=?, target2=?, target3=?, quantity=?, closed_quantity=?, booked_price=?, added_by=?, is_long_term=? WHERE id=?");
-    $stmt->bind_param("sdddddissi i", $symbol, $entry, $sl, $t1, $t2, $t3, $quantity, $closed_quantity, $booked_price, $added_by, $lt, $id);
-    $stmt->execute();
+    if ($stmt === false) {
+        die("Prepare failed: " . $conn->error);
+    }
 
-    header("Location: index.php");
-    exit();
+    $stmt->bind_param("sdddddiisdii", $symbol, $entry, $sl, $t1, $t2, $t3, $quantity, $closed_quantity, $booked_price, $added_by, $lt, $id);
+
+    if ($stmt->execute()) {
+        header("Location: index.php");
+        exit();
+    } else {
+        die("Error updating trade: " . $stmt->error);
+    }
 } else {
     $stmt = $conn->prepare("SELECT * FROM trades WHERE id = ?");
+    if ($stmt === false) {
+        die("Prepare failed: " . $conn->error);
+    }
+
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -43,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Simple fetchLTP function
+// Simple fetchLTP function for demo, replace with real API if needed
 function fetchLTP($symbol) {
     return round(rand(9000, 11000)/100, 2);
 }
