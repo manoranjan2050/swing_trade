@@ -68,9 +68,6 @@ function fetchLTP($symbol) {
                 <input type="number" step="0.01" name="target2" class="form-control" placeholder="Target 2" />
             </div>
             <div class="col-md-2">
-                <input type="number" step="0.01" name="target3" class="form-control" placeholder="Target 3" />
-            </div>
-            <div class="col-md-2">
                 <input type="number" name="quantity" class="form-control" placeholder="Quantity (Shares)" min="1" required />
             </div>
             <div class="col-md-2">
@@ -105,11 +102,11 @@ function fetchLTP($symbol) {
                     <th>Stoploss</th>
                     <th>Target 1</th>
                     <th>Target 2</th>
-                    <th>Target 3</th>
                     <th>Total Shares</th>
                     <th>Closed Shares</th>
                     <th>Current Holding</th>
                     <th>Booked Price</th>
+                    <th>Booked PnL</th>
                     <th>Added By</th>
                     <th>Long Term</th>
                     <th>PNL</th>
@@ -148,11 +145,11 @@ function fetchLTP($symbol) {
                     echo "<td>{$trade['stoploss']}</td>";
                     echo "<td>{$trade['target1']}</td>";
                     echo "<td>" . ($trade['target2'] ?? '-') . "</td>";
-                    echo "<td>" . ($trade['target3'] ?? '-') . "</td>";
                     echo "<td>{$trade['quantity']}</td>";
                     echo "<td>{$trade['closed_quantity']}</td>";
                     echo "<td>{$current_holding}</td>";
                     echo "<td>" . ($trade['booked_price'] !== null ? number_format($trade['booked_price'], 2) : '-') . "</td>";
+                    echo "<td>" . number_format($booked_pnl, 2) . "</td>";
                     echo "<td>" . htmlspecialchars($trade['added_by']) . "</td>";
                     echo "<td>" . ($trade['is_long_term'] ? 'Yes' : 'No') . "</td>";
                     echo "<td>" . number_format($trade_total_pnl, 2) . "</td>";
