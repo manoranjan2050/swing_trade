@@ -12,7 +12,7 @@ $active_trades = $conn->query("SELECT * FROM trades WHERE status='active' ORDER 
 $closed_trades = $conn->query("SELECT * FROM trades WHERE status='closed' ORDER BY close_date DESC")->fetch_all(MYSQLI_ASSOC);
 
 function fetchLTP($symbol) {
-    // For demo, mock LTP near 100 range, you can replace with real API call later
+    // For demo, mock LTP near 100 range, replace with real API call later
     return round(rand(9000, 11000)/100, 2);
 }
 ?>
@@ -74,6 +74,9 @@ function fetchLTP($symbol) {
                 <input type="number" name="quantity" class="form-control" placeholder="Quantity (Shares)" min="1" required />
             </div>
             <div class="col-md-2">
+                <input type="text" name="added_by" class="form-control" placeholder="Added By" required />
+            </div>
+            <div class="col-md-2">
                 <select name="is_long_term" class="form-select">
                     <option value="0">Swing Trade</option>
                     <option value="1">Long Term</option>
@@ -106,6 +109,8 @@ function fetchLTP($symbol) {
                     <th>Total Shares</th>
                     <th>Closed Shares</th>
                     <th>Current Holding</th>
+                    <th>Booked Price</th>
+                    <th>Added By</th>
                     <th>Long Term</th>
                     <th>PNL</th>
                     <th>Status</th>
@@ -118,8 +123,15 @@ function fetchLTP($symbol) {
                 foreach ($active_trades as $trade) {
                     $ltp = fetchLTP($trade['stock_symbol']);
                     $current_holding = $trade['quantity'] - $trade['closed_quantity'];
-                    $pnl = ($ltp - $trade['entry_price']) * $current_holding; // PnL on current holding shares
-                    $total_pnl += $pnl;
+
+                    // Booked PnL calculation
+                    $booked_pnl = ($trade['booked_price'] !== null) ? ($trade['booked_price'] - $trade['entry_price']) * $trade['closed_quantity'] : 0;
+                    // Current holding PnL
+                    $current_pnl = ($ltp - $trade['entry_price']) * $current_holding;
+
+                    // Total PnL is sum of booked + current
+                    $trade_total_pnl = $booked_pnl + $current_pnl;
+                    $total_pnl += $trade_total_pnl;
 
                     // Color logic
                     $near_sl = ($ltp <= $trade['stoploss'] * 1.02) ? 'near-sl' : '';
@@ -140,8 +152,10 @@ function fetchLTP($symbol) {
                     echo "<td>{$trade['quantity']}</td>";
                     echo "<td>{$trade['closed_quantity']}</td>";
                     echo "<td>{$current_holding}</td>";
+                    echo "<td>" . ($trade['booked_price'] !== null ? number_format($trade['booked_price'], 2) : '-') . "</td>";
+                    echo "<td>" . htmlspecialchars($trade['added_by']) . "</td>";
                     echo "<td>" . ($trade['is_long_term'] ? 'Yes' : 'No') . "</td>";
-                    echo "<td>" . number_format($pnl, 2) . "</td>";
+                    echo "<td>" . number_format($trade_total_pnl, 2) . "</td>";
                     echo "<td>{$trade['status']}</td>";
                     echo "<td>
                             <a href='edit_trade.php?id={$trade['id']}' class='btn btn-sm btn-warning'>Edit</a>
