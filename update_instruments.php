@@ -75,6 +75,14 @@ try {
         $segment = $data[array_search('segment', $headers)] ?? '';
         $exchange = $data[array_search('exchange', $headers)] ?? '';
 
+        // Filter to only NSE Equity and ETF
+        if ($segment !== 'NSE') {
+            continue;
+        }
+        if (!in_array($instrument_type, ['EQ', 'ETF'])) {
+            continue;
+        }
+
         $stmt->bind_param(
             "iissdssdisss",
             $instrument_token,
@@ -97,7 +105,7 @@ try {
     }
 
     $conn->commit();
-    echo "Instruments updated successfully.";
+    echo "Instruments updated successfully with NSE Equity & ETFs only.";
 } catch (Exception $e) {
     $conn->rollback();
     die("Transaction failed: " . $e->getMessage());
