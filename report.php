@@ -192,6 +192,10 @@ $trade_counts = array_values($trade_count_by_date);
 <div class="container my-4">
     <h1>Enhanced Trade & Stock Report</h1>
 
+    <div class="mb-4 text-center">
+        <a href="index.php" class="btn btn-primary">Back to Dashboard</a>
+    </div>
+
     <form method="get" class="row g-3 mb-4 justify-content-center align-items-end">
         <div class="col-auto">
             <label for="start_date" class="form-label">Start Date:</label>

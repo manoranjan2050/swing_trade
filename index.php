@@ -1,7 +1,7 @@
 <?php
 include 'db.php';
 
-// Fetch settings or default values
+// Fetch settings or defaults
 $settings_res = $conn->query("SELECT * FROM settings LIMIT 1");
 $settings = $settings_res->fetch_assoc() ?? [];
 
@@ -9,6 +9,12 @@ $total_capital = $settings['total_capital'] ?? 100000;
 $my_name = $settings['my_name'] ?? "Your Name";
 $theme_color = $settings['theme_color'] ?? "#4bc0c0";
 $copyright_text = $settings['copyright_text'] ?? "© 2025 Your Company";
+$api_key = $settings['api_key'] ?? '';
+$access_token = $settings['access_token'] ?? '';
+
+// Fetch instruments for symbol dropdown
+$instruments_res = $conn->query("SELECT symbol, company_name, instrument_token FROM instruments ORDER BY symbol ASC");
+$instruments = $instruments_res->fetch_all(MYSQLI_ASSOC);
 
 // Fetch active trades
 $active_trades = $conn->query("SELECT * FROM trades WHERE status='active' ORDER BY id DESC")->fetch_all(MYSQLI_ASSOC);
@@ -16,9 +22,35 @@ $active_trades = $conn->query("SELECT * FROM trades WHERE status='active' ORDER 
 // Fetch closed trades
 $closed_trades = $conn->query("SELECT * FROM trades WHERE status='closed' ORDER BY close_date DESC")->fetch_all(MYSQLI_ASSOC);
 
-function fetchLTP($symbol) {
-    // Demo: random LTP near 100
-    return round(rand(9000, 11000)/100, 2);
+// Function to fetch LTP using Kite API for given instrument_token
+function fetchLTP($conn, $instrument_token, $api_key, $access_token) {
+    if (!$instrument_token || !$api_key || !$access_token) return 0;
+
+    $url = "https://api.kite.trade/instruments/historical/$instrument_token/5minute?api_key=$api_key&access_token=$access_token";
+
+    // Using instrument token price endpoint (alternative, use quote endpoint below)
+    // But better to use quotes API:
+    $quote_url = "https://api.kite.trade/quote?i=" . urlencode($instrument_token);
+
+    $headers = [
+        "Authorization: token $api_key:$access_token"
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $quote_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);  // set true in production
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    if (!$response) return 0;
+
+    $data = json_decode($response, true);
+    if (!isset($data['data'][$instrument_token]['last_price'])) return 0;
+
+    return $data['data'][$instrument_token]['last_price'];
 }
 
 // Calculate Used Capital and Total PnL
@@ -26,7 +58,17 @@ $used_capital = 0;
 $total_pnl = 0;
 
 foreach ($active_trades as $trade) {
-    $ltp = fetchLTP($trade['stock_symbol']);
+    // Get instrument token for trade symbol
+    $inst_token = 0;
+    foreach ($instruments as $inst) {
+        if ($inst['symbol'] === $trade['stock_symbol']) {
+            $inst_token = $inst['instrument_token'];
+            break;
+        }
+    }
+    $ltp = fetchLTP($conn, $inst_token, $api_key, $access_token);
+    if ($ltp == 0) $ltp = $trade['entry_price']; // fallback
+
     $current_holding = $trade['quantity'] - $trade['closed_quantity'];
     $used_capital += $trade['entry_price'] * $current_holding;
 
@@ -37,6 +79,7 @@ foreach ($active_trades as $trade) {
 
 // Calculate ROI
 $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
+
 ?>
 
 <!DOCTYPE html>
@@ -123,35 +166,58 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
     <div class="card p-3 mb-4">
         <h4>Add New Trade</h4>
         <form method="post" action="add_trade.php" class="row g-3">
-            <div class="col-md-2">
-                <input type="text" name="stock_symbol" class="form-control" placeholder="Symbol" required />
+            <div class="col-md-4">
+                <label for="stock_symbol" class="form-label">Symbol</label>
+                <select name="stock_symbol" id="stock_symbol" class="form-select" required>
+                    <option value="" selected disabled>-- Select Symbol --</option>
+                    <?php foreach ($instruments as $inst): ?>
+                        <option value="<?= htmlspecialchars($inst['symbol']) ?>">
+                            <?= htmlspecialchars($inst['symbol'] . " — " . $inst['company_name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="col-md-2">
-                <input type="number" step="0.01" name="entry_price" class="form-control" placeholder="Entry Price" required />
+                <label for="entry_price" class="form-label">Entry Price</label>
+                <input type="number" step="0.01" name="entry_price" id="entry_price" class="form-control" placeholder="Entry Price" required />
             </div>
             <div class="col-md-2">
-                <input type="number" step="0.01" name="stoploss" class="form-control" placeholder="Stoploss" required />
+                <label for="stoploss" class="form-label">Stoploss</label>
+                <input type="number" step="0.01" name="stoploss" id="stoploss" class="form-control" placeholder="Stoploss" required />
             </div>
             <div class="col-md-2">
-                <input type="number" step="0.01" name="target1" class="form-control" placeholder="Target 1" required />
+                <label for="target1" class="form-label">Target 1</label>
+                <input type="number" step="0.01" name="target1" id="target1" class="form-control" placeholder="Target 1" required />
             </div>
             <div class="col-md-2">
-                <input type="number" step="0.01" name="target2" class="form-control" placeholder="Target 2" />
+                <label for="target2" class="form-label">Target 2</label>
+                <input type="number" step="0.01" name="target2" id="target2" class="form-control" placeholder="Target 2" />
             </div>
             <div class="col-md-2">
-                <input type="number" name="quantity" class="form-control" placeholder="Quantity (Shares)" min="1" required />
+                <label for="quantity" class="form-label">Quantity (Shares)</label>
+                <input type="number" name="quantity" id="quantity" class="form-control" placeholder="Quantity (Shares)" min="1" required />
             </div>
             <div class="col-md-2">
-                <input type="text" name="added_by" class="form-control" placeholder="Added By" required />
+                <label for="added_by" class="form-label">Added By</label>
+                <input type="text" name="added_by" id="added_by" class="form-control" placeholder="Added By" required />
             </div>
             <div class="col-md-2">
-                <select name="is_long_term" class="form-select">
+                <label for="broker_name" class="form-label">Broker Name</label>
+                <input type="text" name="broker_name" id="broker_name" class="form-control" placeholder="Broker Name" />
+            </div>
+            <div class="col-md-2">
+                <label for="remark" class="form-label">Remark</label>
+                <input type="text" name="remark" id="remark" class="form-control" placeholder="Remark" />
+            </div>
+            <div class="col-md-2">
+                <label for="is_long_term" class="form-label">Trade Type</label>
+                <select name="is_long_term" id="is_long_term" class="form-select">
                     <option value="0">Swing Trade</option>
                     <option value="1">Long Term</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary">Add Trade</button>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Add Trade</button>
             </div>
         </form>
     </div>
@@ -159,10 +225,11 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
     <!-- Active Trades Table -->
     <div class="mb-4">
         <h4>Active Trades</h4>
-        <table class="table table-striped">
+        <table class="table table-striped table-responsive">
             <thead>
                 <tr>
                     <th>Symbol</th>
+                    <th>Company</th>
                     <th>Entry</th>
                     <th>LTP</th>
                     <th>Stoploss</th>
@@ -173,6 +240,7 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
                     <th>Current Holding</th>
                     <th>Booked Price</th>
                     <th>Booked PnL</th>
+                    <th>Broker</th>
                     <th>Added By</th>
                     <th>Long Term</th>
                     <th>PNL</th>
@@ -181,9 +249,19 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
                 </tr>
             </thead>
             <tbody>
-                <?php
-                foreach ($active_trades as $trade):
-                    $ltp = fetchLTP($trade['stock_symbol']);
+                <?php foreach ($active_trades as $trade):
+                    $inst_token = 0;
+                    $company = '';
+                    foreach ($instruments as $inst) {
+                        if ($inst['symbol'] === $trade['stock_symbol']) {
+                            $inst_token = $inst['instrument_token'];
+                            $company = $inst['company_name'];
+                            break;
+                        }
+                    }
+                    $ltp = fetchLTP($conn, $inst_token, $api_key, $access_token);
+                    if ($ltp == 0) $ltp = $trade['entry_price'];
+
                     $current_holding = $trade['quantity'] - $trade['closed_quantity'];
                     $booked_pnl = ($trade['booked_price'] !== null) ? ($trade['booked_price'] - $trade['entry_price']) * $trade['closed_quantity'] : 0;
                     $current_pnl = ($ltp - $trade['entry_price']) * $current_holding;
@@ -197,6 +275,7 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
                 ?>
                 <tr class="<?= $row_class ?>">
                     <td><?= htmlspecialchars($trade['stock_symbol']) ?></td>
+                    <td><?= htmlspecialchars($company) ?></td>
                     <td><?= $trade['entry_price'] ?></td>
                     <td><?= $ltp ?></td>
                     <td><?= $trade['stoploss'] ?></td>
@@ -207,6 +286,7 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
                     <td><?= $current_holding ?></td>
                     <td><?= $trade['booked_price'] !== null ? number_format($trade['booked_price'], 2) : '-' ?></td>
                     <td><?= number_format($booked_pnl, 2) ?></td>
+                    <td><?= htmlspecialchars($trade['broker_name'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($trade['added_by']) ?></td>
                     <td><?= $trade['is_long_term'] ? 'Yes' : 'No' ?></td>
                     <td><?= number_format($trade_total_pnl, 2) ?></td>
