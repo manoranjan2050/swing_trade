@@ -106,6 +106,7 @@ $roi = ($total_capital > 0) ? ($total_pnl / $total_capital) * 100 : 0;
 footer { text-align: center; margin-top: 40px; font-size: 0.9rem; color: #666; }
 .select2-container .select2-selection--single { height: 38px; }
 
+/* Action buttons small and inline */
 .action-buttons a, .action-buttons button {
     margin-right: 4px;
     padding: 2px 6px;
@@ -263,7 +264,7 @@ footer { text-align: center; margin-top: 40px; font-size: 0.9rem; color: #666; }
                     case 0: $trade_type_str = 'Swing Trade'; break;
                     case 1: $trade_type_str = 'Long Term'; break;
                     case 2: $trade_type_str = 'MSI'; break;
-                    default: $trade_type_str = 'Unknown'; break;
+                    default: $trade_type_str = 'Unknown';
                 }
             ?>
             <tr class="<?= $row_class ?>" data-trade-type="<?= $trade['is_long_term'] ?>">
@@ -286,7 +287,22 @@ footer { text-align: center; margin-top: 40px; font-size: 0.9rem; color: #666; }
                 <td><?= number_format($trade_total_pnl, 2) ?></td>
                 <td><?= $trade['status'] ?></td>
                 <td class="action-buttons">
-                    <a href="trade_info.php?id=<?= $trade['id'] ?>" class="btn btn-sm btn-info">Info</a>
+                    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#infoModal"
+                        data-symbol="<?= htmlspecialchars($trade['stock_symbol']) ?>"
+                        data-company="<?= htmlspecialchars($company_name) ?>"
+                        data-addedby="<?= htmlspecialchars($trade['added_by']) ?>"
+                        data-broker="<?= htmlspecialchars($trade['broker_name'] ?? '-') ?>"
+                        data-remark="<?= htmlspecialchars($trade['remark'] ?? '-') ?>"
+                        data-trade-type="<?= $trade_type_str ?>"
+                        data-quantity="<?= $trade['quantity'] ?>"
+                        data-closed="<?= $trade['closed_quantity'] ?>"
+                        data-booked-price="<?= $trade['booked_price'] !== null ? number_format($trade['booked_price'], 2) : '-' ?>"
+                        data-entry-price="<?= $trade['entry_price'] ?>"
+                        data-remark-hold="<?= htmlspecialchars($trade['remark_hold'] ?? '-') ?>"
+                        data-stoploss="<?= $trade['stoploss'] ?>"
+                        data-target1="<?= $trade['target1'] ?>"
+                        data-target2="<?= $trade['target2'] ?>"
+                    >Info</button>
                     <a href="edit_trade.php?id=<?= $trade['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
                     <a href="close_trade.php?id=<?= $trade['id'] ?>" class="btn btn-sm btn-success" onclick="return confirm('Close this trade?');">Close</a>
                     <a href="delete_trade.php?id=<?= $trade['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this trade?');">Delete</a>
@@ -322,6 +338,36 @@ footer { text-align: center; margin-top: 40px; font-size: 0.9rem; color: #666; }
     </table>
 </div>
 
+</div>
+
+<!-- Info Modal -->
+<div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="infoModalLabel">Trade Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Symbol:</strong> <span id="modalSymbol"></span></p>
+        <p><strong>Company:</strong> <span id="modalCompany"></span></p>
+        <p><strong>Added By:</strong> <span id="modalAddedBy"></span></p>
+        <p><strong>Broker:</strong> <span id="modalBroker"></span></p>
+        <p><strong>Remark:</strong> <span id="modalRemark"></span></p>
+        <p><strong>Trade Type:</strong> <span id="modalTradeType"></span></p>
+        <p><strong>Total Quantity:</strong> <span id="modalQuantity"></span></p>
+        <p><strong>Closed Quantity:</strong> <span id="modalClosed"></span></p>
+        <p><strong>Booked Price:</strong> <span id="modalBookedPrice"></span></p>
+        <p><strong>Entry Price:</strong> <span id="modalEntryPrice"></span></p>
+        <p><strong>Why Holding:</strong> <span id="modalRemarkHold"></span></p>
+
+        <div id="tradingview_chart" style="height: 450px; width: 100%; margin-top: 20px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <footer><?= htmlspecialchars($copyright_text) ?></footer>
@@ -368,6 +414,55 @@ $(document).ready(function() {
             $('#activeTradesTable tbody tr').hide();
             $('#activeTradesTable tbody tr[data-trade-type="'+selected+'"]').show();
         }
+    });
+});
+
+// Modal data fill + TradingView chart
+$('#infoModal').on('show.bs.modal', function (event) {
+    var button = $(event.relatedTarget);
+    var modal = $(this);
+
+    modal.find('#modalSymbol').text(button.data('symbol'));
+    modal.find('#modalCompany').text(button.data('company'));
+    modal.find('#modalAddedBy').text(button.data('addedby'));
+    modal.find('#modalBroker').text(button.data('broker'));
+    modal.find('#modalRemark').text(button.data('remark'));
+    modal.find('#modalTradeType').text(button.data('trade-type'));
+    modal.find('#modalQuantity').text(button.data('quantity'));
+    modal.find('#modalClosed').text(button.data('closed'));
+    modal.find('#modalBookedPrice').text(button.data('booked-price'));
+    modal.find('#modalEntryPrice').text(button.data('entry-price'));
+    modal.find('#modalRemarkHold').text(button.data('remark-hold'));
+
+    // TradingView chart load
+    var symbol = button.data('symbol');
+    var stoploss = button.data('stoploss');
+    var entry = button.data('entry-price');
+    var target1 = button.data('target1');
+    var target2 = button.data('target2');
+
+    // Clear previous widget
+    $('#tradingview_chart').empty();
+
+    new TradingView.widget({
+        width: '100%',
+        height: 450,
+        symbol: 'NSE:' + symbol,
+        interval: 'D',
+        timezone: "Asia/Kolkata",
+        theme: "light",
+        style: "1",
+        toolbar_bg: '#f1f3f6',
+        withdateranges: true,
+        hide_side_toolbar: false,
+        allow_symbol_change: true,
+        details: true,
+        hotlist: true,
+        calendar: true,
+        studies: [],
+        overrides: {},
+        studies_overrides: {}
+        // Note: Markers for SL/Entry/Target require advanced TradingView integration
     });
 });
 </script>
